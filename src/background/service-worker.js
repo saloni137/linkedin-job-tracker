@@ -111,6 +111,23 @@ async function importFromActiveTab() {
   return { found: res.jobs.length, added, isAppliedPage: res.isAppliedPage };
 }
 
+async function logCurrentJob() {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+  if (!tab || !/linkedin\.com\/jobs/.test(tab.url || '')) {
+    return { error: 'Open a LinkedIn job page first.' };
+  }
+  let res;
+  try {
+    res = await chrome.tabs.sendMessage(tab.id, { type: 'SCRAPE_CURRENT_JOB' });
+  } catch {
+    return { error: 'Reload the LinkedIn tab and try again.' };
+  }
+  const job = res && res.job;
+  if (!job || (!job.jobId && !job.title)) return { error: 'Could not read a job from this page.' };
+  const r = await addApplication({ ...job, method: 'Manual', status: 'Applied', appliedAt: new Date().toISOString() });
+  return { added: r.added, title: r.application.title, synced: r.application.synced };
+}
+
 function toCsv(list) {
   const cols = ['appliedAt', 'title', 'company', 'location', 'method', 'status', 'note', 'url', 'jobId'];
   const esc = (v) => `"${String(v ?? '').replace(/"/g, '""')}"`;
@@ -126,6 +143,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     SET_WEBHOOK_URL: async () => { await chrome.storage.sync.set({ sheetWebhookUrl: msg.url || '' }); return { ok: true }; },
     SYNC_ALL: () => syncAll(),
     IMPORT_APPLIED: () => importFromActiveTab(),
+    LOG_CURRENT_JOB: () => logCurrentJob(),
     DELETE_APPLICATION: async () => { await saveAll((await getAll()).filter((a) => a.id !== msg.id)); return { ok: true }; },
     EXPORT_CSV: async () => ({ csv: toCsv(await getAll()) }),
   };

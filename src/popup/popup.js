@@ -56,6 +56,16 @@ $('sync').addEventListener('click', async () => {
   render();
 });
 
+$('log').addEventListener('click', async () => {
+  setStatus('Reading job…');
+  const r = await send({ type: 'LOG_CURRENT_JOB' });
+  if (r?.error) return setStatus(r.error, true);
+  setStatus(r.added
+    ? `Logged "${r.title}"${r.synced ? ' and sent to sheet.' : ' (not synced yet, check the sheet URL).'}`
+    : `"${r.title}" was already tracked.`);
+  render();
+});
+
 $('import').addEventListener('click', async () => {
   setStatus('Scanning page…');
   const r = await send({ type: 'IMPORT_APPLIED' });

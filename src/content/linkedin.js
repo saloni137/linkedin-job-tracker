@@ -77,7 +77,7 @@
 
     // Location usually lives in a "Location · posted X ago · N applicants"
     // line. Take the first "·"-separated segment.
-    let location = '';
+    let jobLocation = '';
     const descEl = first([
       '.job-details-jobs-unified-top-card__primary-description-container',
       '.job-details-jobs-unified-top-card__primary-description',
@@ -87,16 +87,16 @@
     if (descEl) {
       const lowEmphasis = descEl.querySelector('.tvm__text--low-emphasis, .tvm__text');
       const segments = text(descEl).split(/\s*[·•]\s*/).filter(Boolean);
-      location = clean(
+      jobLocation = clean(
         (lowEmphasis && text(lowEmphasis)) ||
         (segments.length > 1 ? segments[1] : segments[0]) || ''
       );
       // If the segment we grabbed is actually the company name, try the next one.
       const company = text(companyEl);
-      if (company && location === company && segments[1]) location = segments[1];
+      if (company && jobLocation === company && segments[1]) jobLocation = segments[1];
     }
-    if (!location) {
-      location = text(first([
+    if (!jobLocation) {
+      jobLocation = text(first([
         '.job-details-jobs-unified-top-card__bullet',
         '.jobs-unified-top-card__bullet',
         '.jobs-unified-top-card__workplace-type',
@@ -107,9 +107,9 @@
       jobId,
       title: text(titleEl),
       company: text(companyEl),
-      location,
+      location: jobLocation,
       url: jobUrl(jobId),
-      pageUrl: location.href,
+      pageUrl: window.location.href,
     };
 
     // Last-resort fallback: parse the document title "Title | Company | LinkedIn".
@@ -185,6 +185,7 @@
     }
 
     if (!isApplyButton) return;
+    console.log(LOG, 'apply-ish button clicked:', label);
 
     // 2. Easy Apply flow started: snapshot the job while the page is intact.
     if (/easy apply/i.test(label)) {
@@ -288,6 +289,7 @@
   }
 
   function scrapeAppliedList() {
+    const isAppliedPage = /my-items\/saved-jobs/.test(window.location.href) && /cardType=APPLIED/i.test(window.location.href);
     const seen = new Set();
     const jobs = [];
     const links = document.querySelectorAll('a[href*="/jobs/view/"]');
@@ -301,6 +303,9 @@
       const title = text(link) || text(card.querySelector('.entity-result__title-text, strong, h3'));
       const lines = leafTexts(card).filter((t) => t !== title && !/^view job$/i.test(t));
       const appliedLine = lines.find((t) => /^applied\b/i.test(t)) || '';
+      // Outside the Applied page (e.g. search results) only trust cards that
+      // explicitly say "Applied", otherwise we'd log every job in the list.
+      if (!isAppliedPage && !appliedLine) continue;
       const rest = lines.filter((t) => t !== appliedLine && !/^(promoted|easy apply|actively recruiting)$/i.test(t));
 
       jobs.push({
@@ -309,7 +314,7 @@
         company: text(card.querySelector('.entity-result__primary-subtitle')) || rest[0] || '',
         location: text(card.querySelector('.entity-result__secondary-subtitle')) || rest[1] || '',
         url: jobUrl(m[1]),
-        pageUrl: location.href,
+        pageUrl: window.location.href,
         method: 'Unknown',
         status: 'Applied (imported)',
         note: appliedLine,
@@ -320,6 +325,12 @@
   }
 
   chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+    if (msg && msg.type === 'SCRAPE_CURRENT_JOB') {
+      const job = scrapeJob();
+      console.log(LOG, 'manual scrape', job);
+      sendResponse({ job });
+      return false;
+    }
     if (msg && msg.type === 'SCRAPE_APPLIED_LIST') {
       const jobs = scrapeAppliedList();
       console.log(LOG, 'scraped applied list', jobs.length);
