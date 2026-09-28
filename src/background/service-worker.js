@@ -116,13 +116,33 @@ async function testSheet() {
   }
 }
 
+// Sends every tracked job in one request. The sheet script skips job IDs it
+// already has, so re-sending is harmless and this can never get "stuck".
 async function syncAll() {
+  const url = await getWebhookUrl();
+  if (!url) return { error: 'Paste the Apps Script web-app URL first.' };
   const list = await getAll();
-  let ok = 0, failed = 0;
-  for (const app of list.filter((a) => !a.synced)) {
-    try { (await syncOne(app)) ? ok++ : failed++; } catch { failed++; }
+  if (!list.length) return { sent: 0, added: 0, skipped: 0 };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 20000);
+  let data;
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      redirect: 'follow',
+      signal: controller.signal,
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ items: list }),
+    }).finally(() => clearTimeout(timer));
+    data = await expectScriptOk(res);
+  } catch (err) {
+    return { error: err.message };
   }
-  return { ok, failed };
+
+  list.forEach((a) => { a.synced = true; });
+  await saveAll(list);
+  return { sent: list.length, added: data.added || 0, skipped: data.skipped || 0 };
 }
 
 async function importFromActiveTab() {

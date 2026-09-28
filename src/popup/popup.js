@@ -73,7 +73,9 @@ $('sync').addEventListener('click', async () => {
   setStatus('Syncing…');
   const r = await send({ type: 'SYNC_ALL' });
   if (r?.error) return setStatus(r.error, true);
-  setStatus(`Synced ${r.ok}${r.failed ? `, ${r.failed} failed` : ''}.`, r.failed > 0);
+  setStatus(r.sent
+    ? `Sent ${r.sent}: ${r.added} added to sheet, ${r.skipped} already there.`
+    : 'Nothing to sync yet.');
   render();
 });
 
