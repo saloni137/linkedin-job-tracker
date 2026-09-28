@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "LinkedIn Job Tracker",
+  "version": "0.1.0",
+  "description": "Tracks jobs you apply to on LinkedIn and exports them to Excel.",
+  "permissions": ["storage", "downloads"],
+  "host_permissions": ["https://www.linkedin.com/*"],
+  "background": {
+    "service_worker": "src/background/service-worker.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/jobs/*"],
+      "js": ["src/content/linkedin.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "src/popup/popup.html",
+    "default_title": "Job Tracker"
+  }
+}

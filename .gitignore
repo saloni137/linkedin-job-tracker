@@ -1,0 +1,14 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.zip
+
+# OS / editor
+.DS_Store
+.vscode/
+.idea/
+
+# Env
+.env
