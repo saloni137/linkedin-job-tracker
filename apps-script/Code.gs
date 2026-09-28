@@ -19,6 +19,9 @@ var SHEET_NAME = 'Applications';
 
 function getSheet_() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  if (!ss) {
+    throw new Error('Script is not attached to a sheet. Create it from inside your sheet: Extensions > Apps Script.');
+  }
   var sheet = ss.getSheetByName(SHEET_NAME) || ss.insertSheet(SHEET_NAME);
   if (sheet.getLastRow() === 0) {
     sheet.appendRow(HEADERS);
@@ -69,7 +72,16 @@ function doPost(e) {
 }
 
 function doGet() {
-  return json_({ ok: true, message: 'LinkedIn Job Tracker receiver is running.' });
+  try {
+    var sheet = getSheet_();
+    return json_({
+      ok: true,
+      message: 'Receiver is running, ' + Math.max(sheet.getLastRow() - 1, 0) + ' rows logged.',
+      sheet: SpreadsheetApp.getActiveSpreadsheet().getName() + ' / ' + sheet.getName()
+    });
+  } catch (err) {
+    return json_({ ok: false, error: String(err) });
+  }
 }
 
 function json_(obj) {

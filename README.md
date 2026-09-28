@@ -29,7 +29,7 @@ Every job is deduplicated by its LinkedIn job ID, both in the extension and in t
    - Execute as: **Me**
    - Who has access: **Anyone**
 4. Copy the web-app URL (ends in `/exec`)
-5. Click the extension icon → paste the URL → **Save**
+5. Click the extension icon → paste the URL → **Save**, then **Test**. It should reply with your sheet's name.
 
 The script creates an `Applications` tab with headers on the first row it receives.
 

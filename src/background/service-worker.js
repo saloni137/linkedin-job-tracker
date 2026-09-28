@@ -73,7 +73,7 @@ async function syncOne(application) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(application),
   }).finally(() => clearTimeout(timer));
-  if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
+  await expectScriptOk(res);
 
   const list = await getAll();
   const item = list.find((a) => a.id === application.id);
@@ -82,6 +82,38 @@ async function syncOne(application) {
     await saveAll(list);
   }
   return true;
+}
+
+// Apps Script returns HTTP 200 even for failures (script errors, or a Google
+// login page when the deployment is not set to "Anyone"), so inspect the body.
+async function expectScriptOk(res) {
+  const body = await res.text();
+  let data;
+  try { data = JSON.parse(body); } catch {
+    if (/accounts\.google\.com|Sign in/i.test(body) || /<html/i.test(body)) {
+      throw new Error('Sheet script needs login. In Apps Script: Deploy > Manage deployments > set "Who has access" to Anyone.');
+    }
+    throw new Error(`Unexpected reply from sheet script: ${body.slice(0, 80)}`);
+  }
+  if (!res.ok || !data.ok) throw new Error(data.error || `Sheet script error (${res.status})`);
+  return data;
+}
+
+async function testSheet() {
+  const url = await getWebhookUrl();
+  if (!url) return { error: 'Paste the Apps Script web-app URL first.' };
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/.+\/exec$/.test(url)) {
+    return { error: 'That does not look like a web-app URL. It should start with https://script.google.com/macros/s/ and end in /exec.' };
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 15000);
+    const res = await fetch(url, { method: 'GET', redirect: 'follow', signal: controller.signal }).finally(() => clearTimeout(timer));
+    const data = await expectScriptOk(res);
+    return { ok: true, message: data.message || 'Connected.' , sheet: data.sheet || '' };
+  } catch (err) {
+    return { error: err.message };
+  }
 }
 
 async function syncAll() {
@@ -143,7 +175,21 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const handlers = {
     APPLICATION_SUBMITTED: () => addApplication(msg.job),
     GET_APPLICATIONS: async () => ({ applications: await getAll(), webhookUrl: await getWebhookUrl() }),
-    SET_WEBHOOK_URL: async () => { await chrome.storage.sync.set({ sheetWebhookUrl: msg.url || '' }); return { ok: true }; },
+    SET_WEBHOOK_URL: async () => {
+      const previous = await getWebhookUrl();
+      const next = (msg.url || '').trim();
+      await chrome.storage.sync.set({ sheetWebhookUrl: next });
+      // New destination: mark everything unsynced so the next Sync re-sends
+      // it. The sheet script de-duplicates by job ID, so nothing doubles up.
+      if (next && next !== previous) {
+        const list = await getAll();
+        list.forEach((a) => { a.synced = false; });
+        await saveAll(list);
+      }
+      return { ok: true, reset: next !== previous };
+    },
+    TEST_SHEET: () => testSheet(),
+    RESET_SYNC: async () => { const list = await getAll(); list.forEach((a) => { a.synced = false; }); await saveAll(list); return { ok: true }; },
     SYNC_ALL: () => syncAll(),
     IMPORT_APPLIED: () => importFromActiveTab(),
     LOG_CURRENT_JOB: () => logCurrentJob(),

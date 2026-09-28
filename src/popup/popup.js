@@ -56,8 +56,17 @@ async function render() {
 }
 
 $('save').addEventListener('click', async () => {
-  await send({ type: 'SET_WEBHOOK_URL', url: $('webhook').value.trim() });
-  setStatus('Saved. Unsynced rows will be sent on next sync.');
+  const r = await send({ type: 'SET_WEBHOOK_URL', url: $('webhook').value.trim() });
+  if (r?.error) return setStatus(r.error, true);
+  setStatus(r.reset ? 'Saved. Click "Sync to Sheet" to send everything to the new sheet.' : 'Saved.');
+  render();
+});
+
+$('test').addEventListener('click', async () => {
+  setStatus('Testing…');
+  const r = await send({ type: 'TEST_SHEET' });
+  if (r?.error) return setStatus(r.error, true);
+  setStatus(`Connected${r.sheet ? ` to "${r.sheet}"` : ''}. ${r.message}`);
 });
 
 $('sync').addEventListener('click', async () => {
