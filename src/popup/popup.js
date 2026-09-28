@@ -1,2 +1,75 @@
-// Popup: lists tracked applications and triggers Excel export.
-// TODO: read from chrome.storage.local and wire up export button.
+const $ = (id) => document.getElementById(id);
+const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
+
+function setStatus(text, isError = false) {
+  $('status').textContent = text;
+  $('status').style.color = isError ? '#dc2626' : '#6b7280';
+}
+
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? '' : d.toLocaleDateString();
+}
+
+async function render() {
+  const { applications = [], webhookUrl = '' } = (await send({ type: 'GET_APPLICATIONS' })) || {};
+  $('webhook').value = webhookUrl;
+  const unsynced = applications.filter((a) => !a.synced).length;
+  $('count').textContent = `${applications.length} tracked${unsynced ? ` · ${unsynced} unsynced` : ''}`;
+
+  const ul = $('applications');
+  ul.innerHTML = '';
+  if (!applications.length) {
+    ul.innerHTML = '<li class="empty muted">No applications yet. Apply to a job on LinkedIn and it will appear here.</li>';
+    return;
+  }
+  for (const a of applications) {
+    const li = document.createElement('li');
+    li.innerHTML = `
+      <div>
+        <div class="title"><a href="${a.url}" target="_blank" rel="noopener"></a></div>
+        <div class="meta"><span class="dot ${a.synced ? 'synced' : ''}"></span></div>
+      </div>
+      <button class="del" title="Remove">✕</button>`;
+    li.querySelector('a').textContent = a.title || '(untitled)';
+    li.querySelector('.meta').append(
+      [a.company, a.location, a.method, fmtDate(a.appliedAt), a.note].filter(Boolean).join(' · ')
+    );
+    li.querySelector('.del').addEventListener('click', async () => {
+      await send({ type: 'DELETE_APPLICATION', id: a.id });
+      render();
+    });
+    ul.appendChild(li);
+  }
+}
+
+$('save').addEventListener('click', async () => {
+  await send({ type: 'SET_WEBHOOK_URL', url: $('webhook').value.trim() });
+  setStatus('Saved. Unsynced rows will be sent on next sync.');
+});
+
+$('sync').addEventListener('click', async () => {
+  setStatus('Syncing…');
+  const r = await send({ type: 'SYNC_ALL' });
+  if (r?.error) return setStatus(r.error, true);
+  setStatus(`Synced ${r.ok}${r.failed ? `, ${r.failed} failed` : ''}.`, r.failed > 0);
+  render();
+});
+
+$('import').addEventListener('click', async () => {
+  setStatus('Scanning page…');
+  const r = await send({ type: 'IMPORT_APPLIED' });
+  if (r?.error) return setStatus(r.error, true);
+  const hint = r.isAppliedPage ? '' : ' (tip: open My Jobs › Applied for the full list)';
+  setStatus(`Found ${r.found}, added ${r.added} new${hint}.`);
+  render();
+});
+
+$('csv').addEventListener('click', async () => {
+  const { csv } = await send({ type: 'EXPORT_CSV' });
+  const blob = new Blob([csv], { type: 'text/csv' });
+  const url = URL.createObjectURL(blob);
+  chrome.downloads.download({ url, filename: `job-applications-${new Date().toISOString().slice(0, 10)}.csv` });
+});
+
+render();

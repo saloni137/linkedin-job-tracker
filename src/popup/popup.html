@@ -6,9 +6,29 @@
     <link rel="stylesheet" href="popup.css" />
   </head>
   <body>
-    <h1>Job Tracker</h1>
+    <header>
+      <h1>Job Tracker</h1>
+      <span id="count" class="muted"></span>
+    </header>
+
+    <section class="settings">
+      <label for="webhook">Google Sheet web-app URL</label>
+      <div class="row">
+        <input id="webhook" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
+        <button id="save">Save</button>
+      </div>
+    </section>
+
+    <section class="actions">
+      <button id="import" title="Open LinkedIn > My Jobs > Applied, then click">Import applied jobs from this page</button>
+      <button id="sync">Sync to Sheet</button>
+      <button id="csv">Download CSV</button>
+    </section>
+
+    <p id="status" class="muted"></p>
+
     <ul id="applications"></ul>
-    <button id="export">Export to Excel</button>
+
     <script src="popup.js"></script>
   </body>
 </html>
