@@ -63,13 +63,16 @@ async function syncOne(application) {
   const url = await getWebhookUrl();
   if (!url) return false;
 
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 15000);
   const res = await fetch(url, {
     method: 'POST',
     redirect: 'follow',
+    signal: controller.signal,
     // text/plain avoids a CORS preflight, which Apps Script can't answer.
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(application),
-  });
+  }).finally(() => clearTimeout(timer));
   if (!res.ok) throw new Error(`Sheet responded ${res.status}`);
 
   const list = await getAll();

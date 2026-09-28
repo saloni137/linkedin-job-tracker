@@ -1,5 +1,15 @@
 const $ = (id) => document.getElementById(id);
-const send = (msg) => new Promise((resolve) => chrome.runtime.sendMessage(msg, resolve));
+// Resolves with { error } instead of hanging when the background worker is
+// stale (extension not reloaded) or throws.
+const send = (msg) => new Promise((resolve) => {
+  const timer = setTimeout(() => resolve({ error: 'No reply from extension. Reload it on chrome://extensions and reload the LinkedIn tab.' }), 20000);
+  chrome.runtime.sendMessage(msg, (res) => {
+    clearTimeout(timer);
+    if (chrome.runtime.lastError) return resolve({ error: chrome.runtime.lastError.message });
+    if (res === undefined) return resolve({ error: 'Extension is out of date. Reload it on chrome://extensions and reload the LinkedIn tab.' });
+    resolve(res);
+  });
+});
 
 function setStatus(text, isError = false) {
   $('status').textContent = text;
@@ -12,7 +22,9 @@ function fmtDate(iso) {
 }
 
 async function render() {
-  const { applications = [], webhookUrl = '' } = (await send({ type: 'GET_APPLICATIONS' })) || {};
+  const r = await send({ type: 'GET_APPLICATIONS' });
+  if (r?.error) return setStatus(r.error, true);
+  const { applications = [], webhookUrl = '' } = r;
   $('webhook').value = webhookUrl;
   const unsynced = applications.filter((a) => !a.synced).length;
   $('count').textContent = `${applications.length} tracked${unsynced ? ` · ${unsynced} unsynced` : ''}`;
@@ -76,7 +88,9 @@ $('import').addEventListener('click', async () => {
 });
 
 $('csv').addEventListener('click', async () => {
-  const { csv } = await send({ type: 'EXPORT_CSV' });
+  const r = await send({ type: 'EXPORT_CSV' });
+  if (r?.error) return setStatus(r.error, true);
+  const { csv } = r;
   const blob = new Blob([csv], { type: 'text/csv' });
   const url = URL.createObjectURL(blob);
   chrome.downloads.download({ url, filename: `job-applications-${new Date().toISOString().slice(0, 10)}.csv` });
