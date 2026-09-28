@@ -12,7 +12,8 @@
     </header>
 
     <section class="settings">
-      <label for="webhook">Google Sheet web-app URL</label>
+      <label for="webhook">Apps Script web-app URL</label>
+      <p class="muted hint">Not your sheet link. Deploy <code>apps-script/Code.gs</code> from inside your sheet (Extensions › Apps Script › Deploy › Web app) and paste the URL ending in <code>/exec</code>.</p>
       <div class="row">
         <input id="webhook" type="url" placeholder="https://script.google.com/macros/s/.../exec" />
         <button id="save">Save</button>
