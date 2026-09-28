@@ -33,6 +33,8 @@ Every job is deduplicated by its LinkedIn job ID, both in the extension and in t
 
 The script creates an `Applications` tab with headers on the first row it receives.
 
+> **Keep it private:** never commit your sheet ID or the `/exec` web-app URL. Anyone with the web-app URL can append rows to your sheet. The URL lives only in the extension's settings (`chrome.storage.sync`), never in this repo.
+
 ### 3. Import what you've already applied to (optional)
 
 Go to LinkedIn → **My Jobs → Applied** (`linkedin.com/my-items/saved-jobs/?cardType=APPLIED`), scroll to load the jobs you want, open the popup and click **Import applied jobs from this page**. Repeat per page if LinkedIn paginates.
